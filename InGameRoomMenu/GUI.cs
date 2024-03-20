@@ -94,7 +94,7 @@ namespace InGameRoomMenu
 
         public override void OnOpen()
         {
-            ErrorMessage = string.Empty;
+            //ErrorMessage = string.Empty;
             if (Game.InGame)
             {
                 RoomName = PhotonService.Instance.GetCurrentRoomName();
