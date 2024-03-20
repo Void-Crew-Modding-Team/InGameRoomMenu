@@ -17,6 +17,7 @@ namespace InGameRoomMenu
         bool RoomIsPrivate = false;
         float PlayerLimit;
         //string PlayerLimit;
+        //byte MaxPlayerLimit;
 
         public override void Draw()
         {
@@ -45,7 +46,8 @@ namespace InGameRoomMenu
                 }
             }
 
-            Label("Player Limit");
+            Label($"Player Limit: {PlayerLimit.ToString()}/4");
+            //PlayerLimit = TextField(PlayerLimit);
             PlayerLimit = HorizontalSlider(PlayerLimit, 0, 4);
             PlayerLimit = (int)PlayerLimit;
 
@@ -92,12 +94,13 @@ namespace InGameRoomMenu
 
         public override void OnOpen()
         {
-            //ErrorMessage = string.Empty;
+            ErrorMessage = string.Empty;
             if (Game.InGame)
             {
                 RoomName = PhotonService.Instance.GetCurrentRoomName();
                 RoomIsPrivate = PhotonService.Instance.GetCurrentRoomPrivate();
                 PlayerLimit = PhotonNetwork.CurrentRoom.MaxPlayers;
+                //if(VoidManager.MPModChecks.MP)
             }
         }
     }
