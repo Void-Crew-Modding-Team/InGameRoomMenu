@@ -1,4 +1,6 @@
 ﻿using Photon.Pun;
+using System;
+using UnityEngine;
 using VoidManager.CustomGUI;
 using VoidManager.Utilities;
 using static UnityEngine.GUILayout;
@@ -12,16 +14,13 @@ namespace InGameRoomMenu
             return "In-Game Room Menu";
         }
 
-        //string ErrorMessage;
+        string ErrorMessage;
         string RoomName;
-        bool RoomIsPrivate = false;
-        float PlayerLimit;
-        //string PlayerLimit;
-        //byte MaxPlayerLimit;
+        string PlayerLimit;
 
         public override void Draw()
         {
-            if(!Game.InGame) //Blank menu when not in game.
+            if(!Game.InGame || !PhotonNetwork.InRoom) //Blank menu when not in game.
             {
                 Label("Must be in game");
                 return;
@@ -31,76 +30,100 @@ namespace InGameRoomMenu
                 OnOpen();
             }
 
-            Label("Usage: While in game and host, change values below and hit 'apply'. Loaded values are reloaded on menu open.");
+            Label("Usage: While in game and host, change values below and hit 'apply'.");
 
             //Room Name TextField + Label
-            Label("Room Name:");
-            RoomName = TextField(RoomName);
+            SettingGroup($"Room Name - Current Value: {PhotonService.Instance.GetCurrentRoomName()}", ref RoomName, new Action(SetRooomName));
 
             //Private Room Button
-            if (Button($"Private Room: {RoomIsPrivate}"))
+            bool privateRoom = PhotonService.Instance.GetCurrentRoomPrivate();
+            if (Button($"Room Publicity: {(privateRoom ? "Private" : "Public")}"))
             {
                 if(PhotonNetwork.IsMasterClient)
                 {
-                    RoomIsPrivate = !RoomIsPrivate;
+                    PhotonService.Instance.SetCurrentRoomPrivate(!privateRoom);
                 }
             }
 
-            Label($"Player Limit: {PlayerLimit.ToString()}/4");
-            //PlayerLimit = TextField(PlayerLimit);
-            PlayerLimit = HorizontalSlider(PlayerLimit, 0, 4);
-            PlayerLimit = (int)PlayerLimit;
+            //Player limit
+            SettingGroup($"Player Limit - Current Value: {PhotonNetwork.CurrentRoom.MaxPlayers}", ref PlayerLimit, new Action(SetPlayerLimit));
 
-            if (!PhotonNetwork.IsMasterClient) //Block apply button, but clients can still read current lobby settings
+            if (!string.IsNullOrWhiteSpace(ErrorMessage))
             {
-                Label("Must be host to change settings");
+                GUI.color = Color.red;
+                Label(ErrorMessage);
+                GUI.color = Color.white;
             }
-            else if (Button("Apply"))
-            {
-                //ErrorMessage = null;
+        }
 
-                //Apply Room Privacy
-                if(PhotonService.Instance.GetCurrentRoomPrivate() != RoomIsPrivate)
-                {
-                    PhotonService.Instance.SetCurrentRoomPrivate(RoomIsPrivate);
-                }
-                if(RoomName != PhotonService.Instance.GetCurrentRoomName())
-                {
-                    PhotonService.Instance.SetCurrentRoomName(RoomName);
-                }
-                if((byte)PlayerLimit != PhotonNetwork.CurrentRoom.MaxPlayers)
-                {
-                    PhotonNetwork.CurrentRoom.MaxPlayers = (byte)PlayerLimit;
-                }
-                /*if(byte.TryParse(PlayerLimit, out byte pLimit) && pLimit != PhotonNetwork.CurrentRoom.MaxPlayers)
-                {
-                    if (pLimit >= 0 && pLimit <= 4)
-                    {
-                        PhotonNetwork.CurrentRoom.MaxPlayers = pLimit;
-                    }
-                    else
-                    {
-                        ErrorMessage = "Player limit must not go below 0 or exceed 4";
-                    }
-                }*/
+        void SetRooomName()
+        {
+            if (RoomName != PhotonService.Instance.GetCurrentRoomName())
+            {
+                PhotonService.Instance.SetCurrentRoomName(RoomName);
+                RoomName = PhotonService.Instance.GetCurrentRoomName();
             }
-            //if(!ErrorMessage.IsNullOrWhiteSpace())
-            //{
-            //    GUI.color = Color.red;
-            //    Label(ErrorMessage);
-            //    GUI.color = Color.white;
-            //}
+        }
+
+        void SetPlayerLimit()
+        {
+            byte MaxPlayerLimit = 4;
+            var things = BepInEx.Bootstrap.Chainloader.PluginInfos;
+            if (things.ContainsKey("MaxPlayers"))
+            {
+                MaxPlayerLimit = 255;
+            }
+            else if (things.ContainsKey("Space.HobosIn.Voider_Crew"))
+            {
+                MaxPlayerLimit = 8;
+            }
+
+            if (byte.TryParse(PlayerLimit, out byte pl) && pl != PhotonNetwork.CurrentRoom.MaxPlayers)
+            {
+                if (pl <= MaxPlayerLimit && pl > 0)
+                {
+                    ErrorMessage = null;
+                    PhotonNetwork.CurrentRoom.MaxPlayers = pl;
+                    
+                }
+                else
+                {
+                    ErrorMessage = $"Player limit must be a number between 1 and {MaxPlayerLimit}";
+                }
+            }
+            else
+            {
+                ErrorMessage = $"Player limit must be a number between 1 and {MaxPlayerLimit}";
+            }
+        }
+
+        static GUIStyle MinSizeStyle;
+
+        static void SettingGroup(string label, ref string settingvalue, Action func)
+        {
+            Label(label);
+            BeginHorizontal();
+            settingvalue = TextField(settingvalue);
+            if(PhotonNetwork.IsMasterClient && Button("Apply", MinSizeStyle)) //Block apply button, but clients can still read current lobby settings
+            {
+                func?.Invoke();
+            }
+            EndHorizontal();
         }
 
         public override void OnOpen()
         {
-            //ErrorMessage = string.Empty;
+            ErrorMessage = null;
             if (Game.InGame)
             {
                 RoomName = PhotonService.Instance.GetCurrentRoomName();
-                RoomIsPrivate = PhotonService.Instance.GetCurrentRoomPrivate();
-                PlayerLimit = PhotonNetwork.CurrentRoom.MaxPlayers;
-                //if(VoidManager.MPModChecks.MP)
+                PlayerLimit = PhotonNetwork.CurrentRoom.MaxPlayers.ToString();
+            }
+
+            if(MinSizeStyle == null)
+            {
+                MinSizeStyle = new GUIStyle(GUI.skin.button);
+                MinSizeStyle.stretchWidth = false;
             }
         }
     }
